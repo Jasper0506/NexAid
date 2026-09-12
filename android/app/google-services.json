@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "191758379878",
+    "firebase_url": "https://nexaid-c4987-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "nexaid-c4987",
+    "storage_bucket": "nexaid-c4987.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:191758379878:android:3bd56fc1e605f1413cf6a7",
+        "android_client_info": {
+          "package_name": "com.example.nexaid"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "191758379878-gt61ss595uvt865e6654a1j19l5b0vv4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.nexaid",
+            "certificate_hash": "0f3b6399e24d4339df78949019dece79084ab271"
+          }
+        },
+        {
+          "client_id": "191758379878-glk409f03grkmftbrf7bqu5nebje3k3v.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBorrsNOFfYw-6Z2OUge1AoreLHZnQ7TtY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "191758379878-glk409f03grkmftbrf7bqu5nebje3k3v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

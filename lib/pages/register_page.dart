@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -33,6 +35,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isRegistering = false;
 
   bool _firstNameError = false;
   bool _lastNameError = false;
@@ -42,6 +45,10 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _emailError = false;
   bool _passwordError = false;
   bool _confirmPasswordError = false;
+
+  String? _emailErrorText;
+  String? _passwordErrorText;
+  String? _confirmPasswordErrorText;
 
   @override
   void dispose() {
@@ -85,26 +92,140 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  void _registerAccount() {
+  Future<void> _registerAccount() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
     setState(() {
-      _emailError = _emailController.text.trim().isEmpty;
-      _passwordError = _passwordController.text.isEmpty;
-      _confirmPasswordError = _confirmPasswordController.text.isEmpty;
+      _emailError = email.isEmpty;
+      _passwordError = password.isEmpty;
+      _confirmPasswordError = confirmPassword.isEmpty;
+
+      _emailErrorText = email.isEmpty ? 'This field is required.' : null;
+
+      _passwordErrorText =
+      password.isEmpty ? 'This field is required.' : null;
+
+      _confirmPasswordErrorText =
+      confirmPassword.isEmpty ? 'This field is required.' : null;
     });
 
     if (_emailError || _passwordError || _confirmPasswordError) {
       return;
     }
 
-    if (_passwordController.text != _confirmPasswordController.text) {
+    if (!_isValidEmail(email)) {
       setState(() {
-        _passwordError = true;
-        _confirmPasswordError = true;
+        _emailError = true;
+        _emailErrorText = 'Please enter a valid email address.';
       });
       return;
     }
 
-    _showSuccessNotice();
+    if (password.length < 6) {
+      setState(() {
+        _passwordError = true;
+        _passwordErrorText = 'Password must be at least 6 characters.';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _passwordError = true;
+        _confirmPasswordError = true;
+        _passwordErrorText = 'Passwords do not match.';
+        _confirmPasswordErrorText = 'Passwords do not match.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isRegistering = true;
+    });
+
+    try {
+      final UserCredential userCredential =
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final User? user = userCredential.user;
+
+      if (user == null) {
+        throw FirebaseAuthException(
+          code: 'user-not-created',
+          message: 'Unable to create the account.',
+        );
+      }
+
+      final DatabaseReference userReference =
+      FirebaseDatabase.instance.ref('users/${user.uid}');
+
+      await userReference.set({
+        'uid': user.uid,
+        'firstName': _firstNameController.text.trim(),
+        'middleName': _middleNameController.text.trim(),
+        'lastName': _lastNameController.text.trim(),
+        'gender': _selectedGender,
+        'typeOfDisability': _selectedDisability,
+        'email': email,
+        'createdAt': ServerValue.timestamp,
+      });
+
+      if (!mounted) return;
+
+      setState(() {
+        _isRegistering = false;
+      });
+
+      _showSuccessNotice();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isRegistering = false;
+      });
+
+      if (e.code == 'email-already-in-use') {
+        setState(() {
+          _emailError = true;
+          _emailErrorText = 'This email is already registered.';
+        });
+      } else if (e.code == 'invalid-email') {
+        setState(() {
+          _emailError = true;
+          _emailErrorText = 'Please enter a valid email address.';
+        });
+      } else if (e.code == 'weak-password') {
+        setState(() {
+          _passwordError = true;
+          _passwordErrorText = 'Password is too weak.';
+        });
+      } else {
+        _showErrorNotice(
+          e.message ?? 'Registration failed. Please try again.',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isRegistering = false;
+      });
+
+      _showErrorNotice(
+        'Something went wrong while creating your account.',
+      );
+    }
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(
+      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+    ).hasMatch(email);
   }
 
   void _showSuccessNotice() {
@@ -129,6 +250,42 @@ class _RegisterPageState extends State<RegisterPage> {
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              child: const Text(
+                'OK',
+                style: TextStyle(
+                  color: Color(0xFFFF3030),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showErrorNotice(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text(
+            'Registration Failed',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(
+              fontSize: 16,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
                 Navigator.pop(context);
               },
               child: const Text(
@@ -597,7 +754,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Widget _buildSecondRegistrationPage() {
-    bool passwordMismatch =
+    final bool passwordMismatch =
         _passwordController.text.isNotEmpty &&
             _confirmPasswordController.text.isNotEmpty &&
             _passwordController.text != _confirmPasswordController.text;
@@ -646,13 +803,14 @@ class _RegisterPageState extends State<RegisterPage> {
             if (value.trim().isNotEmpty) {
               setState(() {
                 _emailError = false;
+                _emailErrorText = null;
               });
             }
           },
           decoration: _textFieldDecoration(
             hintText: 'Enter your email',
             hasError: _emailError,
-            errorText: 'This field is required.',
+            errorText: _emailErrorText ?? 'This field is required.',
           ),
           style: const TextStyle(
             fontSize: 17,
@@ -680,17 +838,14 @@ class _RegisterPageState extends State<RegisterPage> {
             setState(() {
               _passwordError = false;
               _confirmPasswordError = false;
+              _passwordErrorText = null;
+              _confirmPasswordErrorText = null;
             });
           },
           decoration: _textFieldDecoration(
             hintText: 'Create a password',
             hasError: _passwordError,
-            errorText: _passwordError &&
-                _confirmPasswordController.text.isNotEmpty &&
-                _passwordController.text !=
-                    _confirmPasswordController.text
-                ? 'Passwords do not match.'
-                : 'This field is required.',
+            errorText: _passwordErrorText ?? 'This field is required.',
             suffixIcon: IconButton(
               icon: Icon(
                 _obscurePassword
@@ -729,14 +884,16 @@ class _RegisterPageState extends State<RegisterPage> {
           onChanged: (value) {
             setState(() {
               _confirmPasswordError = false;
+              _confirmPasswordErrorText = null;
             });
           },
           decoration: _textFieldDecoration(
             hintText: 'Confirm your password',
-            hasError: _confirmPasswordError,
-            errorText: passwordMismatch
-                ? 'Passwords do not match.'
-                : 'This field is required.',
+            hasError: _confirmPasswordError || passwordMismatch,
+            errorText: _confirmPasswordErrorText ??
+                (passwordMismatch
+                    ? 'Passwords do not match.'
+                    : 'This field is required.'),
             suffixIcon: IconButton(
               icon: Icon(
                 _obscureConfirmPassword
@@ -766,7 +923,7 @@ class _RegisterPageState extends State<RegisterPage> {
               width: 120,
               height: 50,
               child: OutlinedButton(
-                onPressed: _backPage,
+                onPressed: _isRegistering ? null : _backPage,
                 style: OutlinedButton.styleFrom(
                   backgroundColor: Colors.white,
                   side: const BorderSide(
@@ -791,7 +948,9 @@ class _RegisterPageState extends State<RegisterPage> {
               width: 120,
               height: 50,
               child: ElevatedButton(
-                onPressed: _registerAccount,
+                onPressed: _isRegistering
+                    ? null
+                    : _registerAccount,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF3030),
                   foregroundColor: Colors.white,
@@ -799,7 +958,16 @@ class _RegisterPageState extends State<RegisterPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text(
+                child: _isRegistering
+                    ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Text(
                   'Register',
                   style: TextStyle(
                     fontSize: 17,
@@ -826,7 +994,9 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
                 WidgetSpan(
                   child: GestureDetector(
-                    onTap: () {
+                    onTap: _isRegistering
+                        ? null
+                        : () {
                       Navigator.pop(context);
                     },
                     child: const Text(
