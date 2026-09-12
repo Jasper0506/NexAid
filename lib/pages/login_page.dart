@@ -4,6 +4,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'register_page.dart';
 
+// ⚠️ IMPORTANT: Adjust this import path if your home_screen.dart is in the same 'pages' folder.
+// If it's in the main 'lib' folder, use: import '../home_screen.dart';
+import '../home_screen.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -12,11 +16,8 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController _emailController =
-  TextEditingController();
-
-  final TextEditingController _passwordController =
-  TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
   bool _isLoggingIn = false;
@@ -69,8 +70,7 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _saveEmail(String email) async {
     final prefs = await SharedPreferences.getInstance();
 
-    List<String> emails =
-        prefs.getStringList('recent_emails') ?? [];
+    List<String> emails = prefs.getStringList('recent_emails') ?? [];
 
     emails.remove(email);
     emails.insert(0, email);
@@ -95,8 +95,7 @@ class _LoginPageState extends State<LoginPage> {
 
     return _recentEmails
         .where(
-          (email) =>
-          email.toLowerCase().contains(value.toLowerCase()),
+          (email) => email.toLowerCase().contains(value.toLowerCase()),
     )
         .toList();
   }
@@ -115,11 +114,8 @@ class _LoginPageState extends State<LoginPage> {
       _emailError = email.isEmpty;
       _passwordError = password.isEmpty;
 
-      _emailErrorText =
-      email.isEmpty ? 'This field is required.' : null;
-
-      _passwordErrorText =
-      password.isEmpty ? 'This field is required.' : null;
+      _emailErrorText = email.isEmpty ? 'This field is required.' : null;
+      _passwordErrorText = password.isEmpty ? 'This field is required.' : null;
     });
 
     if (_emailError || _passwordError) {
@@ -129,10 +125,8 @@ class _LoginPageState extends State<LoginPage> {
     if (!_isValidEmail(email)) {
       setState(() {
         _emailError = true;
-        _emailErrorText =
-        'Please enter a valid email address.';
+        _emailErrorText = 'Please enter a valid email address.';
       });
-
       return;
     }
 
@@ -154,7 +148,12 @@ class _LoginPageState extends State<LoginPage> {
         _isLoggingIn = false;
       });
 
-      _showLoginSuccess();
+      // ✅ NAVIGATE TO HOME DASHBOARD
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
@@ -169,19 +168,13 @@ class _LoginPageState extends State<LoginPage> {
         setState(() {
           _emailError = true;
           _passwordError = true;
-
           _emailErrorText = 'Incorrect email or password.';
-          _passwordErrorText =
-          'Incorrect email or password.';
+          _passwordErrorText = 'Incorrect email or password.';
         });
       } else if (e.code == 'too-many-requests') {
-        _showErrorNotice(
-          'Too many login attempts. Please try again later.',
-        );
+        _showErrorNotice('Too many login attempts. Please try again later.');
       } else {
-        _showErrorNotice(
-          e.message ?? 'Login failed. Please try again.',
-        );
+        _showErrorNotice(e.message ?? 'Login failed. Please try again.');
       }
     } catch (e) {
       if (!mounted) return;
@@ -190,9 +183,7 @@ class _LoginPageState extends State<LoginPage> {
         _isLoggingIn = false;
       });
 
-      _showErrorNotice(
-        'Something went wrong. Please try again.',
-      );
+      _showErrorNotice('Something went wrong. Please try again.');
     }
   }
 
@@ -214,26 +205,20 @@ class _LoginPageState extends State<LoginPage> {
       final GoogleSignInAccount googleUser =
       await GoogleSignIn.instance.authenticate();
 
-      final GoogleSignInAuthentication googleAuth =
-          googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
 
       final String? idToken = googleAuth.idToken;
 
       if (idToken == null) {
-        throw Exception(
-          'Google did not provide an ID token.',
-        );
+        throw Exception('Google did not provide an ID token.');
       }
 
-      final AuthCredential credential =
-      GoogleAuthProvider.credential(
+      final AuthCredential credential = GoogleAuthProvider.credential(
         idToken: idToken,
       );
 
       final UserCredential userCredential =
-      await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
+      await FirebaseAuth.instance.signInWithCredential(credential);
 
       final User? user = userCredential.user;
 
@@ -247,7 +232,12 @@ class _LoginPageState extends State<LoginPage> {
         _isLoggingIn = false;
       });
 
-      _showLoginSuccess();
+      // ✅ NAVIGATE TO HOME DASHBOARD
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+
     } on GoogleSignInException catch (e) {
       if (!mounted) return;
 
@@ -259,9 +249,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      _showErrorNotice(
-        'Google sign-in failed. Please try again.',
-      );
+      _showErrorNotice('Google sign-in failed. Please try again.');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
@@ -269,9 +257,7 @@ class _LoginPageState extends State<LoginPage> {
         _isLoggingIn = false;
       });
 
-      _showErrorNotice(
-        e.message ?? 'Google sign-in failed.',
-      );
+      _showErrorNotice(e.message ?? 'Google sign-in failed.');
     } catch (e) {
       if (!mounted) return;
 
@@ -279,47 +265,8 @@ class _LoginPageState extends State<LoginPage> {
         _isLoggingIn = false;
       });
 
-      _showErrorNotice(
-        'Google sign-in failed. Please try again.',
-      );
+      _showErrorNotice('Google sign-in failed. Please try again.');
     }
-  }
-
-  void _showLoginSuccess() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Login Successful',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            'You have successfully logged in.',
-            style: TextStyle(
-              fontSize: 16,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'OK',
-                style: TextStyle(
-                  color: Color(0xFFFF3030),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _showErrorNotice(String message) {
@@ -329,15 +276,11 @@ class _LoginPageState extends State<LoginPage> {
         return AlertDialog(
           title: const Text(
             'Login Failed',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
           content: Text(
             message,
-            style: const TextStyle(
-              fontSize: 16,
-            ),
+            style: const TextStyle(fontSize: 16),
           ),
           actions: [
             TextButton(
@@ -366,12 +309,9 @@ class _LoginPageState extends State<LoginPage> {
   }) {
     return InputDecoration(
       filled: true,
-      fillColor:
-      hasError ? const Color(0xFFFFEBEE) : Colors.white,
+      fillColor: hasError ? const Color(0xFFFFEBEE) : Colors.white,
       hintText: hintText,
-      hintStyle: const TextStyle(
-        color: Colors.grey,
-      ),
+      hintStyle: const TextStyle(color: Colors.grey),
       errorText: hasError ? errorText : null,
       errorStyle: const TextStyle(
         color: Color(0xFFD32F2F),
@@ -380,10 +320,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       errorMaxLines: 2,
       suffixIcon: hasError
-          ? const Icon(
-        Icons.error_outline,
-        color: Color(0xFFD32F2F),
-      )
+          ? const Icon(Icons.error_outline, color: Color(0xFFD32F2F))
           : suffixIcon,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -392,25 +329,18 @@ class _LoginPageState extends State<LoginPage> {
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(
-          color: hasError
-              ? const Color(0xFFD32F2F)
-              : Colors.transparent,
+          color: hasError ? const Color(0xFFD32F2F) : Colors.transparent,
           width: hasError ? 2 : 0,
         ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(
-          color: hasError
-              ? const Color(0xFFD32F2F)
-              : const Color(0xFFFF3030),
+          color: hasError ? const Color(0xFFD32F2F) : const Color(0xFFFF3030),
           width: 2,
         ),
       ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 15,
-        vertical: 16,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
     );
   }
 
@@ -441,14 +371,11 @@ class _LoginPageState extends State<LoginPage> {
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 30,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 30),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 55),
-
                   const Text(
                     'HI! Welcome to NexAid!',
                     style: TextStyle(
@@ -457,9 +384,7 @@ class _LoginPageState extends State<LoginPage> {
                       color: Colors.white,
                     ),
                   ),
-
                   const SizedBox(height: 45),
-
                   const Text(
                     'Log in your account.',
                     style: TextStyle(
@@ -468,9 +393,7 @@ class _LoginPageState extends State<LoginPage> {
                       color: Colors.white,
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   const Text(
                     'Email:',
                     style: TextStyle(
@@ -479,37 +402,24 @@ class _LoginPageState extends State<LoginPage> {
                       color: Colors.black,
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   Autocomplete<String>(
                     optionsBuilder: (textEditingValue) {
-                      return _getSuggestions(
-                        textEditingValue.text,
-                      );
+                      return _getSuggestions(textEditingValue.text);
                     },
                     onSelected: (String selection) {
                       _emailController.text = selection;
-
                       setState(() {
                         _emailError = false;
                         _emailErrorText = null;
                       });
                     },
-                    fieldViewBuilder: (
-                        context,
-                        controller,
-                        focusNode,
-                        onFieldSubmitted,
-                        ) {
-                      _emailController.value =
-                          controller.value;
-
+                    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                      _emailController.value = controller.value;
                       return TextField(
                         controller: controller,
                         focusNode: focusNode,
-                        keyboardType:
-                        TextInputType.emailAddress,
+                        keyboardType: TextInputType.emailAddress,
                         onChanged: (value) {
                           if (value.trim().isNotEmpty) {
                             setState(() {
@@ -521,19 +431,13 @@ class _LoginPageState extends State<LoginPage> {
                         decoration: _textFieldDecoration(
                           hintText: 'Enter your email',
                           hasError: _emailError,
-                          errorText: _emailErrorText ??
-                              'This field is required.',
+                          errorText: _emailErrorText ?? 'This field is required.',
                         ),
-                        style: const TextStyle(
-                          fontSize: 17,
-                          color: Colors.black,
-                        ),
+                        style: const TextStyle(fontSize: 17, color: Colors.black),
                       );
                     },
                   ),
-
                   const SizedBox(height: 25),
-
                   const Text(
                     'Password:',
                     style: TextStyle(
@@ -542,9 +446,7 @@ class _LoginPageState extends State<LoginPage> {
                       color: Colors.black,
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   TextField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
@@ -559,53 +461,39 @@ class _LoginPageState extends State<LoginPage> {
                     decoration: _textFieldDecoration(
                       hintText: 'Enter your password',
                       hasError: _passwordError,
-                      errorText: _passwordErrorText ??
-                          'This field is required.',
+                      errorText: _passwordErrorText ?? 'This field is required.',
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_off
-                              : Icons.visibility,
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
-                            _obscurePassword =
-                            !_obscurePassword;
+                            _obscurePassword = !_obscurePassword;
                           });
                         },
                       ),
                     ),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      color: Colors.black,
-                    ),
+                    style: const TextStyle(fontSize: 17, color: Colors.black),
                   ),
-
                   const SizedBox(height: 35),
-
                   Center(
                     child: SizedBox(
                       width: 140,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _isLoggingIn
-                            ? null
-                            : _loginAccount,
+                        onPressed: _isLoggingIn ? null : _loginAccount,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                          const Color(0xFFFF3030),
+                          backgroundColor: const Color(0xFFFF3030),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                            BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         child: _isLoggingIn
                             ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child:
-                          CircularProgressIndicator(
+                          child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: Colors.white,
                           ),
@@ -620,9 +508,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   const Center(
                     child: Text(
                       'OR',
@@ -633,30 +519,22 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 20),
-
                   Center(
                     child: SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: OutlinedButton(
-                        onPressed: _isLoggingIn
-                            ? null
-                            : _loginWithGoogle,
+                        onPressed: _isLoggingIn ? null : _loginWithGoogle,
                         style: OutlinedButton.styleFrom(
                           backgroundColor: Colors.white,
-                          side: const BorderSide(
-                            color: Colors.grey,
-                          ),
+                          side: const BorderSide(color: Colors.grey),
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                            BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         child: Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
                               'assets/images/google_logo.png',
@@ -677,9 +555,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 40),
-
                   Center(
                     child: RichText(
                       text: TextSpan(
@@ -688,9 +564,7 @@ class _LoginPageState extends State<LoginPage> {
                           fontSize: 15,
                         ),
                         children: [
-                          const TextSpan(
-                            text: "Don't have an account? ",
-                          ),
+                          const TextSpan(text: "Don't have an account? "),
                           WidgetSpan(
                             child: GestureDetector(
                               onTap: _isLoggingIn
@@ -699,8 +573,7 @@ class _LoginPageState extends State<LoginPage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                    const RegisterPage(),
+                                    builder: (context) => const RegisterPage(),
                                   ),
                                 );
                               },
@@ -709,8 +582,7 @@ class _LoginPageState extends State<LoginPage> {
                                 style: TextStyle(
                                   color: Color(0xFFFF3030),
                                   fontWeight: FontWeight.bold,
-                                  decoration:
-                                  TextDecoration.underline,
+                                  decoration: TextDecoration.underline,
                                   fontSize: 15,
                                 ),
                               ),
@@ -720,7 +592,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 30),
                 ],
               ),
