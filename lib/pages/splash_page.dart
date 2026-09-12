@@ -43,17 +43,29 @@ class _SplashPageState extends State<SplashPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'NexAid',
-                style: TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFFFF3030),
+              Image.asset(
+                'assets/images/nexaid_logo.png',
+                width: 180,
+                height: 180,
+                fit: BoxFit.contain,
+              ),
+
+              Transform.translate(
+                offset: const Offset(0, -18),
+                child: const Text(
+                  'NexAid',
+                  style: TextStyle(
+                    fontSize: 42,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFF3030),
+                  ),
                 ),
               ),
-              const SizedBox(height: 10),
+
+              const SizedBox(height: 0),
+
               const Text(
-                'Your Emergency Assistance Companion',
+                'Every second counts. Help starts here.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
