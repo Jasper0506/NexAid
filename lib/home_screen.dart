@@ -8,6 +8,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 // ⚠️ IMPORTANT: Adjust this import path to match where your login_page.dart is located!
 import '../pages/login_page.dart';
@@ -162,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ---------------------------------------------------------
-// CONTACTS PAGE
+// CONTACTS PAGE (WITH SIM/PHONEBOOK IMPORT)
 // ---------------------------------------------------------
 class ContactsPage extends StatefulWidget {
   final bool isHC;
@@ -212,7 +213,52 @@ class _ContactsPageState extends State<ContactsPage> {
     }
   }
 
-  Future<void> _addContact() async {
+  void _showAddContactOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Color(0xFFFF3B30), size: 28),
+                title: const Text('Add Manually', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _addContactManually();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.contact_phone, color: Color(0xFFFF3B30), size: 28),
+                title: const Text('Import from Phone', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _importFromPhone();
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _addContactManually() async {
     final String? name = await _showInputDialog('Contact Name', 'e.g., Mother');
     if (name == null || name.isEmpty) return;
 
@@ -222,6 +268,159 @@ class _ContactsPageState extends State<ContactsPage> {
     final String? relationship = await _showInputDialog('Relationship', 'e.g., Mother, Father, Caregiver');
     if (relationship == null || relationship.isEmpty) return;
 
+    await _saveContactToFirebase(name, phone, relationship);
+  }
+
+  // ✅ FIXED: Using getAll with properties parameter for version 2.6.0
+  Future<void> _importFromPhone() async {
+    try {
+      final status = await FlutterContacts.permissions.request(PermissionType.read);
+      if (status != PermissionStatus.granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Permission to read contacts is required.'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+
+      // CORRECT METHOD FOR VERSION 2.6.0
+      final contacts = await FlutterContacts.getAll(
+        properties: {ContactProperty.name, ContactProperty.phone},
+      );
+
+      if (!mounted) return;
+
+      final validContacts = contacts.where((c) => c.phones.isNotEmpty).toList();
+
+      if (validContacts.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No contacts with phone numbers found on this device.')),
+        );
+        return;
+      }
+
+      _showPhoneContactsDialog(validContacts);
+
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error importing contacts: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showPhoneContactsDialog(List<Contact> contacts) {
+    List<Contact> filteredContacts = contacts;
+    final searchController = TextEditingController();
+    final bool isHC = widget.isHC;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isHC ? Colors.black : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(
+                    'Select a Contact',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: isHC ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: searchController,
+                    style: TextStyle(color: isHC ? Colors.white : Colors.black),
+                    decoration: InputDecoration(
+                      hintText: 'Search name or number...',
+                      hintStyle: TextStyle(color: isHC ? Colors.white54 : Colors.grey),
+                      prefixIcon: Icon(Icons.search, color: isHC ? Colors.white54 : Colors.grey),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: isHC ? Colors.white54 : Colors.grey),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: Color(0xFFFF3B30)),
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setModalState(() {
+                        filteredContacts = contacts.where((c) {
+                          final name = (c.displayName ?? '').toLowerCase();
+                          final phone = c.phones.first.number;
+                          final search = value.toLowerCase();
+                          return name.contains(search) || phone.contains(search);
+                        }).toList();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: filteredContacts.length,
+                      itemBuilder: (context, index) {
+                        final contact = filteredContacts[index];
+                        final phone = contact.phones.first.number;
+                        final displayName = contact.displayName ?? 'Unknown Contact';
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: const Color(0xFFFF3B30).withOpacity(0.2),
+                            child: const Icon(Icons.person, color: Color(0xFFFF3B30)),
+                          ),
+                          title: Text(
+                            displayName,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isHC ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          subtitle: Text(
+                            phone,
+                            style: TextStyle(color: isHC ? Colors.white70 : Colors.black54),
+                          ),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _promptRelationshipAndSave(displayName, phone);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _promptRelationshipAndSave(String name, String phone) async {
+    final String? relationship = await _showInputDialog(
+        'Relationship to $name',
+        'e.g., Mother, Caregiver, Doctor'
+    );
+    if (relationship == null || relationship.isEmpty) return;
+
+    await _saveContactToFirebase(name, phone, relationship);
+  }
+
+  Future<void> _saveContactToFirebase(String name, String phone, String relationship) async {
     final category = relationship.toLowerCase().contains('care')
         ? 'Caregivers'
         : 'Emergency Contacts';
@@ -387,7 +586,7 @@ class _ContactsPageState extends State<ContactsPage> {
             bottom: 20,
             right: 20,
             child: FloatingActionButton.extended(
-              onPressed: _addContact,
+              onPressed: _showAddContactOptions,
               backgroundColor: const Color(0xFFFF3B30),
               foregroundColor: Colors.white,
               icon: const Icon(Icons.add, size: 28),
@@ -648,7 +847,7 @@ class _HomeDashboardContentState extends State<HomeDashboardContent> {
 }
 
 // ---------------------------------------------------------
-// ✅ FIXED: SMS FALLBACK PAGE WITH WORKING LOCATION
+// SMS FALLBACK PAGE
 // ---------------------------------------------------------
 class SmsFallbackPage extends StatefulWidget {
   const SmsFallbackPage({super.key});
@@ -675,7 +874,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
     _loadContacts();
   }
 
-  // ✅ IMPROVED: Robust location fetching with retry and clear error messages
   Future<void> _getLocation() async {
     setState(() {
       _isLoadingLocation = true;
@@ -684,7 +882,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
     });
 
     try {
-      // 1. Check if location services are enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (mounted) {
@@ -698,7 +895,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
         return;
       }
 
-      // 2. Check and request permission
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -728,7 +924,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
         return;
       }
 
-      // 3. Try cached location first (instant)
       Position? position;
       try {
         position = await Geolocator.getLastKnownPosition();
@@ -736,7 +931,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
         print('Last known position failed: $e');
       }
 
-      // 4. If no cached location, get fresh position with timeout
       if (position == null) {
         try {
           position = await Geolocator.getCurrentPosition(
@@ -764,7 +958,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
         throw Exception('No location available');
       }
 
-      // 5. Format the location
       final String lat = position.latitude.toStringAsFixed(6);
       final String lon = position.longitude.toStringAsFixed(6);
       final String accuracy = position.accuracy.toStringAsFixed(0);
@@ -842,7 +1035,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
       return;
     }
 
-    // Build a Google Maps link so contacts can navigate
     final String mapsLink = 'https://maps.google.com/?q=$_latitude,$_longitude';
 
     final String message = Uri.encodeComponent(
@@ -906,7 +1098,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
             children: [
               const SizedBox(height: 30),
 
-              // --- No WiFi Icon ---
               Container(
                 width: 160,
                 height: 160,
@@ -953,7 +1144,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
 
               const SizedBox(height: 30),
 
-              // --- SMS Fallback Activated Card ---
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -984,7 +1174,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
 
               const SizedBox(height: 15),
 
-              // --- Last Known Location Card with Refresh Button ---
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
@@ -1007,7 +1196,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
                             color: Color(0xFFFF3B30),
                           ),
                         ),
-                        // ✅ Refresh button
                         IconButton(
                           icon: Icon(
                             Icons.refresh,
@@ -1054,7 +1242,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
                           fontStyle: FontStyle.italic,
                         ),
                       ),
-                      // Show "Try Again" if failed
                       if (_locationFailed)
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
@@ -1081,7 +1268,6 @@ class _SmsFallbackPageState extends State<SmsFallbackPage> {
 
               const SizedBox(height: 30),
 
-              // --- Send SOS via SMS Button ---
               SizedBox(
                 width: double.infinity,
                 height: 60,
